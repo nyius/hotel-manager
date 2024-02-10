@@ -1,114 +1,157 @@
-import styled from 'styled-components';
-
+import PropTypes from 'prop-types';
+import { useForm } from 'react-hook-form';
 import Input from '../../ui/Input';
 import Form from '../../ui/Form';
 import Button from '../../ui/Button';
 import FileInput from '../../ui/FileInput';
 import Textarea from '../../ui/Textarea';
+import FormRow from '../../ui/FormRow';
 
-import { useForm } from 'react-hook-form';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createCabin } from '../../services/apiCabins';
-import toast from 'react-hot-toast';
+import { useCreateCabin } from './useCreateCabin';
+import { useEditCabin } from './useEditCabin';
 
-const FormRow = styled.div`
-	display: grid;
-	align-items: center;
-	grid-template-columns: 24rem 1fr 1.2fr;
-	gap: 2.4rem;
+function CreateCabinForm({ cabinToEdit = {}, onCloseModal }) {
+	const { createCabin, isCreatingCabin } = useCreateCabin();
+	const { editCabin, isEditingCabin } = useEditCabin();
+	const isUploading = isCreatingCabin || isEditingCabin;
 
-	padding: 1.2rem 0;
+	// Destructure the cabin we are editing (if we are editing one)
+	const { id: editId, ...editValues } = cabinToEdit;
+	// Check if it is an edit session by checking if we found an id from above
+	const isEditSession = Boolean(editId);
 
-	&:first-child {
-		padding-top: 0;
-	}
-
-	&:last-child {
-		padding-bottom: 0;
-	}
-
-	&:not(:last-child) {
-		border-bottom: 1px solid var(--color-grey-100);
-	}
-
-	&:has(button) {
-		display: flex;
-		justify-content: flex-end;
-		gap: 1.2rem;
-	}
-`;
-
-const Label = styled.label`
-	font-weight: 500;
-`;
-
-const Error = styled.span`
-	font-size: 1.4rem;
-	color: var(--color-red-700);
-`;
-
-function CreateCabinForm() {
-	const { register, handleSubmit, reset } = useForm();
-
-	const queryClient = useQueryClient(); // This is for invalidating our query to force reactQuery to re-fetch
-	const { mutate, isLoading: isCreatingCabin } = useMutation({
-		mutationFn: createCabin,
-		onSuccess: () => {
-			toast.success(`New cabin created!`);
-			queryClient.invalidateQueries({ queryKey: ['cabins'] });
-			reset();
-		},
-		onError: () => {
-			toast.error(`Something went wrong adding new cabin`);
-		},
+	// React-query form setup. If we are editing a cabin, prefil the values to the editing values, else just make everything empty
+	const { register, handleSubmit, reset, getValues, formState } = useForm({
+		defaultValues: isEditSession ? editValues : {},
 	});
+	const { errors } = formState;
 
 	const onSubmit = data => {
-		mutate(data);
+		const image = typeof data.image === 'object' && data.image.length > 0 ? data.image[0] : cabinToEdit.image;
+		if (isEditSession) {
+			editCabin(
+				{ newCabinData: { ...data, image }, id: editId },
+				{
+					onSuccess: data => {
+						reset(data);
+						onCloseModal?.();
+					},
+				}
+			);
+		} else {
+			createCabin(
+				{ ...data, image },
+				{
+					onSuccess: () => {
+						reset();
+						onCloseModal?.();
+					},
+				}
+			);
+		}
+	};
+
+	const onError = errors => {
+		console.log(errors);
 	};
 
 	//---------------------------------------------------------------------------------------------------//
 	return (
-		<Form onSubmit={handleSubmit(onSubmit)}>
-			<FormRow>
-				<Label htmlFor="name">Cabin name</Label>
-				<Input type="text" id="name" {...register(`name`)} />
+		<Form onSubmit={handleSubmit(onSubmit, onError)} type={onCloseModal ? 'modal' : 'regular'}>
+			<FormRow label="Cabin name" error={errors?.name?.message}>
+				<Input
+					type="text"
+					id="name"
+					disabled={isUploading}
+					{...register(`name`, {
+						required: 'This field is required',
+					})}
+				/>
 			</FormRow>
 
-			<FormRow>
-				<Label htmlFor="maxCapacity">Maximum capacity</Label>
-				<Input type="number" id="maxCapacity" {...register(`maxCapacity`)} />
+			<FormRow label="Maximum capacity" error={errors?.maxCapacity?.message}>
+				<Input
+					type="number"
+					id="maxCapacity"
+					defaultValue={1}
+					disabled={isUploading}
+					{...register(`maxCapacity`, {
+						// message if this field is empty
+						required: 'This field is required',
+						min: {
+							value: 1,
+							// message if this field is less than 1
+							message: 'Capacity should be atleast 1',
+						},
+					})}
+				/>
 			</FormRow>
 
-			<FormRow>
-				<Label htmlFor="regularPrice">Regular price</Label>
-				<Input type="number" id="regularPrice" {...register(`regularPrice`)} />
+			<FormRow label="Regular price" error={errors?.regularPrice?.message}>
+				<Input
+					type="number"
+					id="regularPrice"
+					defaultValue={0}
+					disabled={isUploading}
+					{...register(`regularPrice`, {
+						required: 'This field is required',
+						min: {
+							value: 1,
+							message: `Cabin can't be free!`,
+						},
+					})}
+				/>
 			</FormRow>
 
-			<FormRow>
-				<Label htmlFor="discount">Discount</Label>
-				<Input type="number" id="discount" defaultValue={0} {...register(`discount`)} />
+			<FormRow label="Discount" error={errors?.discount?.message}>
+				<Input
+					type="number"
+					id="discount"
+					defaultValue={0}
+					disabled={isUploading}
+					{...register(`discount`, {
+						required: 'This field is required',
+						validate: value => Number(value) <= Number(getValues().regularPrice) || `Discount should be less than the regular price!`,
+					})}
+				/>
 			</FormRow>
 
-			<FormRow>
-				<Label htmlFor="description">Description for website</Label>
-				<Textarea type="number" id="description" defaultValue="" {...register(`description`)} />
+			<FormRow label="Description for website" error={errors?.description?.message}>
+				<Textarea
+					type="number"
+					id="description"
+					defaultValue=""
+					{...register(`description`, {
+						required: 'This field is required',
+					})}
+				/>
 			</FormRow>
 
-			<FormRow>
-				<Label htmlFor="image">Cabin photo</Label>
-				<FileInput id="image" accept="image/*" />
+			<FormRow label="Cabin photo" error={errors?.image?.message}>
+				<FileInput
+					id="image"
+					accept="image/*"
+					disabled={isUploading}
+					{...register(`image`, {
+						required: isEditSession ? false : 'This field is required',
+					})}
+				/>
 			</FormRow>
 
 			<FormRow>
 				{/* type is an HTML attribute! */}
-				<Button variation="secondary" type="reset">
+				<Button variation="secondary" type="reset" onClick={() => onCloseModal?.()}>
 					Cancel
 				</Button>
-				<Button disabled={isCreatingCabin}>Add cabin</Button>
+				<Button disabled={isUploading}>{isEditSession ? `Save Changes` : `Create cabin`}</Button>
 			</FormRow>
 		</Form>
 	);
 }
 
 export default CreateCabinForm;
+
+CreateCabinForm.propTypes = {
+	cabinToEdit: PropTypes.object,
+	onCloseModal: PropTypes.func,
+};
