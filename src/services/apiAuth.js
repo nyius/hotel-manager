@@ -55,3 +55,66 @@ export const logout = async () => {
 		throw new Error(error);
 	}
 };
+
+/**
+ * Handles signing up
+ * @param {*} param0
+ * @returns
+ */
+export const signup = async ({ fullName, email, password }) => {
+	try {
+		const { data, error } = await supabase.auth.signUp({
+			email,
+			password,
+			options: {
+				data: {
+					fullName,
+					avatar: '',
+				},
+			},
+		});
+
+		if (error) {
+			throw new Error('Something went wrong creating user');
+		}
+
+		return data;
+	} catch (error) {
+		console.log(`Something went wrong signing up`);
+	}
+};
+
+export const updateCurrentUser = async ({ password, fullName, avatar }) => {
+	try {
+		let updateData;
+		if (password) updateData = { password };
+		if (fullName) updateData = { data: { fullName } };
+
+		const { data, error } = await supabase.auth.updateUser(updateData);
+
+		if (error) {
+			throw new Error(error);
+		}
+
+		if (!avatar) return data;
+
+		const fileName = `avatar-${data.user.id}-${Math.random()}`;
+
+		const { error: avatarError } = await supabase.storage.from('avatars').upload(fileName, avatar);
+
+		if (avatarError) {
+			throw new Error(avatarError.message);
+		}
+
+		const { data: updatedUser, error: error2 } = await supabase.auth.updateUser({ data: { avatar: `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/avatars/${fileName}` } });
+
+		if (error2) {
+			throw new Error(error2.message);
+		}
+
+		return updatedUser;
+	} catch (error) {
+		console.log(error);
+		console.log(`Something went wrong updating your profile.`);
+	}
+};
