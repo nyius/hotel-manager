@@ -84,6 +84,11 @@ export const signup = async ({ fullName, email, password }) => {
 	}
 };
 
+/**
+ * Handles updating the current user
+ * @param {*} param0
+ * @returns
+ */
 export const updateCurrentUser = async ({ password, fullName, avatar }) => {
 	try {
 		let updateData;

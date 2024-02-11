@@ -11,8 +11,7 @@ export const useUpdateUser = () => {
 		},
 		onSuccess: ({ user }) => {
 			toast.success(`User updated`);
-			// queryClient.setQueryData(['user', user]);
-			queryClient.invalidateQueries({ queryKey: [`user`] });
+			queryClient.setQueryData(['user'], user);
 		},
 		onError: () => {
 			toast.error(`Something went wrong updating user`);
